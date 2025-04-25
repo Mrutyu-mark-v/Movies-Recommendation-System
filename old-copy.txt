@@ -1,0 +1,66 @@
+import streamlit as st
+import pandas as pd
+import pickle
+import requests
+import gdown
+import os
+
+# Load data
+movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
+movies = pd.DataFrame(movies_dict)
+
+# Load similarity matrix
+similarity = pickle.load(open('similarity.pkl', 'rb'))  # <-- This must be the correct file
+
+def fetch_postre(movie_id):
+    response = requests.get('https://api.themoviedb.org/3/movie/{}?api_key=8265bd1679663a7ea12ac168da84d2e8&language=en-US'.format(movie_id))
+    data = response.json()
+    if 'poster_path' in data and data['poster_path']:
+        return "https://image.tmdb.org/t/p/w500/" + data['poster_path']
+    else:
+        print(f"Warning: No poster found for movie ID {movie_id}")
+        return "https://via.placeholder.com/500x750?text=No+Image"
+    
+    
+# Recommendation function
+def recommend(movie_title):
+    if movie_title not in movies['title'].values:
+        return ["Movie not found in database."]
+
+    movie_index = movies[movies['title'] == movie_title].index[0]
+    distances = similarity[movie_index]
+
+    # Get top 5 similar movies
+    movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+
+    recommended_list = []
+    recommended_list_posters = []
+    for i in movies_list:
+        # movie_id = movies.iloc[i[0]].movie_id
+        # movie_id = movies.iloc[i[0]]['movie_id']
+        movie_id = movies.iloc[i[0]]['id']
+
+
+        
+        recommended_list.append(movies.iloc[i[0]].title)
+        recommended_list_posters.append(fetch_postre(movie_id))
+    return recommended_list, recommended_list_posters
+
+# Streamlit app
+st.set_page_config(page_title="M-R-S", page_icon="▶️")
+st.title("Movie Recommendation System")
+
+# User input
+select_op = st.selectbox("Search your movie...", movies['title'].values)
+
+# Recommend button
+if st.button("Recommend"):
+    names,posters = recommend(select_op)
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    cols = [col1, col2, col3, col4, col5]
+    for i in range(5):
+        with cols[i]:
+            st.text(names[i])
+            st.image(posters[i])
+ 
